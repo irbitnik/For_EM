@@ -2,6 +2,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .serializers import RegisterSerializer
+from django.utils import timezone
+from .models import Session, CustomUser
 
 
 @api_view(['POST'])
@@ -19,3 +21,60 @@ def register(request):
             }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+def set_session_cookie(response, session):
+    """Установка cookie с session_id"""
+    response.set_cookie(
+        key='session_id',
+        value=session.session_id,
+        max_age=int(session.expires_at.timestamp() - timezone.now().timestamp()),
+        httponly=True,  # Защищает от XSS атак
+        secure=False,   # True в продакшене с HTTPS
+        samesite='Lax'  # Защита от CSRF
+    )
+    return response
+
+
+@api_view(['POST'])
+def login(request):
+    """Вход в систему"""
+    if request.method == 'POST':
+        email = request.data.get('email')
+        password = request.data.get('password')
+
+        if not email or not password:
+            return Response({
+                'error': 'Email и пароль обязательны'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'error': 'Неверный email или пароль'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Проверяем пароль
+        if not user.check_password(password):
+            return Response({
+                'error': 'Неверный email или пароль'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Проверяем активность
+        if not user.is_active:
+            return Response({
+                'error': 'Аккаунт неактивен (удалён или заблокирован)'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Создаем сессию
+        session = Session.create_session(user)
+
+        # Создаем ответ и устанавливаем cookie
+        response = Response({
+            'message': 'Вход выполнен успешно',
+            'user_id': user.id,
+            'email': user.email
+        })
+        response = set_session_cookie(response, session)
+
+        return response
