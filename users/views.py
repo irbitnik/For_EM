@@ -22,19 +22,6 @@ def register(request):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-def set_session_cookie(response, session):
-    """Установка cookie с session_id"""
-    response.set_cookie(
-        key='session_id',
-        value=session.session_id,
-        max_age=int(session.expires_at.timestamp() - timezone.now().timestamp()),
-        httponly=True,  # Защищает от XSS атак
-        secure=False,   # True в продакшене с HTTPS
-        samesite='Lax'  # Защита от CSRF
-    )
-    return response
-
-
 @api_view(['POST'])
 def login(request):
     """Вход в систему"""
@@ -78,3 +65,44 @@ def login(request):
         response = set_session_cookie(response, session)
 
         return response
+
+@api_view(['POST'])
+def logout(request):
+    """Выход из системы"""
+    if request.method == 'POST':
+        session_id = request.COOKIES.get('session_id')
+
+        # Деактивируем сессию в базе (если существует)
+        if session_id:
+            try:
+                session = Session.objects.get(
+                    session_id=session_id,
+                    is_active=True
+                )
+                session.is_active = False
+                session.save()
+            except Session.DoesNotExist:
+                pass  # Сессия уже удалена/не найдена
+
+        # Удаляем cookie из браузера
+        response = Response({'message': 'Выход выполнен успешно'})
+        response.delete_cookie('session_id')
+
+        return response
+
+def set_session_cookie(response, session):
+    """Установка cookie с session_id"""
+    response.set_cookie(
+        key='session_id',
+        value=session.session_id,
+        max_age=int(session.expires_at.timestamp() - timezone.now().timestamp()),
+        httponly=True,  # Защищает от XSS атак
+        secure=False,   # True в продакшене с HTTPS
+        samesite='Lax'  # Защита от CSRF
+    )
+    return response
+
+def delete_session_cookie(response):
+    """Удаление cookie с session_id"""
+    response.delete_cookie('session_id')
+    return response
