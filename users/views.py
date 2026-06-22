@@ -113,6 +113,32 @@ def profile(request):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(['DELETE'])
+def delete_account(request):
+    """Мягкое удаление аккаунта"""
+    if not request.user:
+        return Response({
+            'error': 'Пользователь не авторизован'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+
+    user = request.user
+
+    if request.method == 'DELETE':
+        # 1. Деактивируем все активные сессии пользователя
+        Session.objects.filter(user=user, is_active=True).update(is_active=False)
+
+        # 2. Удаляем cookie из браузера
+        response = Response({
+            'message': 'Аккаунт успешно удален'
+        })
+        response.delete_cookie('session_id')
+
+        # 3. Мягко удаляем пользователя (is_active=False)
+        user.is_active = False
+        user.save()
+
+        return response
+
 def set_session_cookie(response, session):
     """Установка cookie с session_id"""
     response.set_cookie(
