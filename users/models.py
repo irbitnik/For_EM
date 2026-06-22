@@ -1,4 +1,7 @@
 import bcrypt
+import uuid
+from datetime import timedelta
+from django.utils import timezone
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 
@@ -65,3 +68,47 @@ class CustomUser(AbstractUser):
             return bcrypt.checkpw(password_bytes, stored_hash)
         except Exception:
             return False
+
+
+class Session(models.Model):
+    """Модель сессии для хранения cookie-сессий"""
+    user = models.ForeignKey(
+        CustomUser,  # 🟢 Связь с пользователем
+        on_delete=models.CASCADE,  # При удалении пользователя — удаляем все его сессии
+        verbose_name='Пользователь'
+    )
+    session_id = models.CharField(
+        max_length=36,  # UUID4 = 36 символов
+        unique=True,    # Обязательно для идентификации
+        verbose_name='ID сессии'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создана')
+    expires_at = models.DateTimeField(verbose_name='Истекает')
+    is_active = models.BooleanField(default=True, verbose_name='Активна')
+
+    class Meta:
+        verbose_name = 'Сессия'
+        verbose_name_plural = 'Сессии'
+
+    def __str__(self):
+        return f"Сессия {self.user} (до {self.expires_at.strftime('%Y-%m-%d %H:%M')})"
+
+    def save(self, *args, **kwargs):
+        """Генерация session_id при первом сохранении (если не задан)"""
+        if not self.session_id:
+            self.session_id = str(uuid.uuid4())  # 🔑 Генерируем UUID4
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        """Проверка, истекла ли сессия"""
+        return timezone.now() > self.expires_at
+
+    @classmethod
+    def create_session(cls, user, expires_in_hours=24):
+        """Создание новой сессии (удобный метод для login)"""
+        session = cls(
+            user=user,
+            expires_at=timezone.now() + timedelta(hours=expires_in_hours)
+        )
+        session.save()
+        return session
