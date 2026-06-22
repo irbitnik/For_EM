@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .serializers import RegisterSerializer
+from .serializers import RegisterSerializer, ProfileSerializer
 from django.utils import timezone
 from .models import Session, CustomUser
 
@@ -89,6 +89,29 @@ def logout(request):
         response.delete_cookie('session_id')
 
         return response
+
+@api_view(['GET', 'PUT', 'PATCH'])
+def profile(request):
+    """Получение и обновление профиля"""
+    if not request.user:
+        return Response({
+            'error': 'Пользователь не авторизован'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+
+    user = request.user
+
+    if request.method == 'GET':
+        serializer = ProfileSerializer(user)
+        return Response(serializer.data)
+
+    elif request.method in ['PUT', 'PATCH']:
+        serializer = ProfileSerializer(user, data=request.data, partial=(request.method == 'PATCH'))
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 def set_session_cookie(response, session):
     """Установка cookie с session_id"""

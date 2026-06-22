@@ -32,3 +32,10 @@ class RegisterSerializer(serializers.Serializer):
             last_name=validated_data['last_name'],
             middle_name=validated_data.get('middle_name', '')
         )
+
+class ProfileSerializer(serializers.ModelSerializer):
+    """Сериализатор для профиля пользователя"""
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'email', 'first_name', 'last_name', 'middle_name']
+        read_only_fields = ['id', 'email']  # ID и email нельзя менять
