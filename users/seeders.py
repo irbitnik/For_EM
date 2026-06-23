@@ -75,8 +75,21 @@ def seed_group_permissions():
 
     all_permissions = Permission.objects.all()
     admin_group.permissions.set(all_permissions)
-    manager_group.permissions.set(all_permissions)
-    print("✅ Админ и Менеджер получили все разрешения")
+    print("✅ Админ получил все разрешения (полный доступ)")
+
+    # 🟡 Менеджер: все права, кроме критичных операций
+    # Исключаем: delete_customuser, delete_all_customuser,
+    #            delete_group, delete_all_group,
+    #            delete_permission, delete_all_permission
+    manager_permissions = all_permissions.exclude(
+        codename__in=[
+            'delete_customuser', 'delete_all_customuser',
+            'delete_group', 'delete_all_group',
+            'delete_permission', 'delete_all_permission',
+        ]
+    )
+    manager_group.permissions.set(manager_permissions)
+    print("✅ Менеджер получил все права, кроме удаления пользователей и ролей")
 
     user_permissions = Permission.objects.filter(
         codename__in=[
