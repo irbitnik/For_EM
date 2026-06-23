@@ -100,12 +100,30 @@ def seed_group_permissions():
     guest_group.permissions.set(guest_permissions)
     print("✅ Гость получил права только на чтение общих данных")
 
+def seed_admin_user():
+    """Создать админа, если нет"""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    username = 'admin'
+    email = 'admin@example.com'
+    password = 'admin123'  # В продакшене — из .env
+
+    if not User.objects.filter(username=username).exists():
+        user = User.objects.create_user(username=username, email=email, password=password)
+        admin_group = Group.objects.get(name='Админ')
+        user.groups.add(admin_group)
+        user.save()
+        print(f"✅ Админ-пользователь создан: {username}")
+    else:
+        print(f"ℹ️ Админ-пользователь уже существует: {username}")
 
 def seed_all():
     """Полный набор сидов (порядок важен!)"""
     print("\n🔄 Старт сидирования ролей и прав...")
     seed_groups()
     seed_permissions()
+    seed_admin_user()
     seed_group_permissions()
     print("\n✅ Сидирование завершено!\n")
 

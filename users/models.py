@@ -69,6 +69,39 @@ class CustomUser(AbstractUser):
         except Exception:
             return False
 
+    def has_role(self, role_code: str) -> bool:
+        """Проверить, есть ли у пользователя указанная роль по её коду (code в Group.name или Group.code)"""
+        return self.groups.filter(name__iexact=role_code).exists()
+
+    def get_roles(self) -> list[str]:
+        """Получить список названий ролей пользователя"""
+        return list(self.groups.values_list('name', flat=True))
+
+    def has_permission(self, permission_codename: str) -> bool:
+        """Проверить, есть ли у пользователя указанное разрешение по коду"""
+        return self.has_perm(f'auth.{permission_codename}')
+
+    def get_all_permissions(self) -> set[str]:
+        """Получить все разрешения (включая групповые)"""
+        return set(self.get_all_permissions_directly() | self.get_group_permissions())
+
+    def get_all_permissions_directly(self) -> set[str]:
+        """Только прямые разрешения пользователя (без групп)"""
+        return set(self.user_permissions.values_list('codename', flat=True))
+
+    def get_group_permissions(self) -> set[str]:
+        """Разрешения через группы (стандартный Django)"""
+        return self.get_all_permissions_directly() | self.user_permissions.values_list('codename', flat=True)
+
+    def get_role_permissions_summary(self) -> dict:
+        """Сводка: роли + количество разрешений"""
+        roles = self.groups.values_list('name', flat=True)
+        perms = self.get_all_permissions()
+        return {
+            'roles': list(roles),
+            'permissions_count': len(perms),
+            'permissions_sample': list(perms)[:5]  # первые 5 для примера
+        }
 
 class Session(models.Model):
     """Модель сессии для хранения cookie-сессий"""
