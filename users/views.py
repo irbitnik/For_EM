@@ -1,10 +1,89 @@
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .serializers import RegisterSerializer, ProfileSerializer
+from rest_framework.views import APIView
+from .serializers import RegisterSerializer, ProfileSerializer, GroupSerializer
 from django.utils import timezone
+from django.contrib.auth.models import Group
+from django.shortcuts import get_object_or_404
 from .models import Session, CustomUser
 
+
+class GroupListView(APIView):
+    def post(self, request):
+        """Создание новой группы (только для админов)"""
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = GroupSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get(self, request):
+        """Получение списка всех групп (только для админов)"""
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        groups = Group.objects.all()
+        serializer = GroupSerializer(groups, many=True)
+        return Response(serializer.data)
+
+
+class GroupDetailView(APIView):
+    def get(self, request, pk):
+        """Получение группы по ID (только для админов)"""
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        group = get_object_or_404(Group, pk=pk)
+        serializer = GroupSerializer(group)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        """Обновление группы по ID (только для админов)"""
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        group = get_object_or_404(Group, pk=pk)
+        serializer = GroupSerializer(group, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        """Удаление группы по ID (только для админов)"""
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        group = get_object_or_404(Group, pk=pk)
+        group.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UserGroupAssignmentView(APIView):
+    def post(self, request, user_id):
+        """Назначить группу пользователю (только для админов)"""
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = get_object_or_404(CustomUser, pk=user_id)
+        group_id = request.data.get('group_id')
+        group = get_object_or_404(Group, pk=group_id)
+        user.groups.add(group)
+        return Response({'message': f'Группа "{group.name}" назначена пользователю {user.email}'})
+
+    def delete(self, request, user_id, group_id):
+        """Снять группу с пользователя (только для админов)"""
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = get_object_or_404(CustomUser, pk=user_id)
+        group = get_object_or_404(Group, pk=group_id)
+        user.groups.remove(group)
+        return Response({'message': f'Группа "{group.name}" снята с пользователя {user.email}'})
 
 @api_view(['POST'])
 def register(request):

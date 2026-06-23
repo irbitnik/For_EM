@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import CustomUser
+from django.contrib.auth.models import Group
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -39,3 +40,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = ['id', 'email', 'first_name', 'last_name', 'middle_name']
         read_only_fields = ['id', 'email']  # ID и email нельзя менять
+
+class GroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ['id', 'name']
