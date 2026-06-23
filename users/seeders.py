@@ -1,10 +1,3 @@
-from django.apps import AppConfig
-
-
-class UsersConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'users'
-
 def seed_groups():
     """Создать группы (роли) по умолчанию"""
     from django.contrib.auth.models import Group
@@ -17,22 +10,20 @@ def seed_groups():
     ]
 
     for group in groups_data:
-        Group.objects.get_or_create(name=group['name'])
-        print(f"✅ Сгруппа создана/найдена: {group['name']}")
+        obj, created = Group.objects.get_or_create(name=group['name'])
+        status = "✅ Создана" if created else "✅ Уже существует"
+        print(f"{status}: {group['name']}")
 
 
 def seed_permissions():
     """Создать разрешения для элементов"""
     from django.contrib.auth.models import Permission
     from django.contrib.contenttypes.models import ContentType
-    from django.apps import apps
 
-    # Элементы, которые будем защищать
     elements = [
         {'name': 'Пользователи', 'model': 'customuser', 'app_label': 'users'},
         {'name': 'Группы', 'model': 'group', 'app_label': 'auth'},
         {'name': 'Разрешения', 'model': 'permission', 'app_label': 'auth'},
-        # В будущем: products, shops, orders, access_rules — добавим модели и обновим список
     ]
 
     permissions_map = [
@@ -46,7 +37,6 @@ def seed_permissions():
     ]
 
     for elem in elements:
-        # Получаем content_type или создаем, если нет (на всякий случай)
         content_type, created = ContentType.objects.get_or_create(
             model=elem['model'],
             app_label=elem['app_label']
@@ -54,13 +44,16 @@ def seed_permissions():
 
         for codename_base, name_ru in permissions_map:
             codename = f'{codename_base}_{elem["model"]}'
-            Permission.objects.get_or_create(
+            perm, created = Permission.objects.get_or_create(
                 codename=codename,
                 defaults={
                     'name': f'{name_ru} {elem["name"]}',
                     'content_type': content_type
                 }
             )
+            # Необязательно: для отладки можно раскомментировать
+            # print(f"  { '✅ Создано' if created else '✅ Уже есть' }: {perm.codename}")
+
         print(f"✅ Разрешения для '{elem['name']}' созданы/найдены")
 
 
@@ -68,24 +61,26 @@ def seed_group_permissions():
     """Назначить разрешения группам по умолчанию"""
     from django.contrib.auth.models import Group, Permission
 
+    # 🟢 Проверка существования всех необходимых групп
+    required_groups = ['Админ', 'Менеджер', 'Пользователь', 'Гость']
+    for name in required_groups:
+        if not Group.objects.filter(name=name).exists():
+            print(f"❌ Ошибка: группа '{name}' не найдена. Выполните сначала seed_groups()")
+            return
+
     admin_group = Group.objects.get(name='Админ')
     manager_group = Group.objects.get(name='Менеджер')
     user_group = Group.objects.get(name='Пользователь')
     guest_group = Group.objects.get(name='Гость')
 
-    # Админ: все права
     all_permissions = Permission.objects.all()
     admin_group.permissions.set(all_permissions)
-    print("✅ Админ получил все разрешения")
-
-    # Менеджер: все права
     manager_group.permissions.set(all_permissions)
-    print("✅ Менеджер получил все разрешения")
+    print("✅ Админ и Менеджер получили все разрешения")
 
-    # Пользователь: только свои объекты
     user_permissions = Permission.objects.filter(
         codename__in=[
-            'read_customuser',  # читать (свой профиль)
+            'read_customuser',
             'update_customuser',
             'delete_customuser',
         ]
@@ -93,30 +88,41 @@ def seed_group_permissions():
     user_group.permissions.set(user_permissions)
     print("✅ Пользователь получил права на свой аккаунт")
 
-    # Гость: только чтение
     guest_permissions = Permission.objects.filter(
         codename__startswith='read_'
     ).exclude(codename__endswith='__all')
     guest_group.permissions.set(guest_permissions)
-    print("✅ Гость получил права только на чтение общих данных")
+    print("✅ Гость получил права только на чтение")
+
 
 def seed_admin_user():
-    """Создать админа, если нет"""
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
+    from django.contrib.auth.models import Group
+    from django.apps import apps
 
-    username = 'admin'
+    User = apps.get_model('users.CustomUser')
+
     email = 'admin@example.com'
-    password = 'admin123'  # В продакшене — из .env
+    password = 'admin123'
 
-    if not User.objects.filter(username=username).exists():
-        user = User.objects.create_user(username=username, email=email, password=password)
-        admin_group = Group.objects.get(name='Админ')
-        user.groups.add(admin_group)
-        user.save()
-        print(f"✅ Админ-пользователь создан: {username}")
+    if not User.objects.filter(email=email).exists():
+        user = User.objects.create_user(
+            email=email,
+            password=password,
+            first_name='Администратор',
+            last_name='Системы',
+            is_staff=True
+        )
+        try:
+            admin_group = Group.objects.get(name='Админ')
+            user.groups.add(admin_group)
+            user.save()
+            print(f"✅ Админ-пользователь создан: {email}")
+        except Group.DoesNotExist:
+            print("❌ Ошибка: группа 'Админ' не найдена. Запустите сначала seed_groups()")
+            return
     else:
-        print(f"ℹ️ Админ-пользователь уже существует: {username}")
+        print(f"ℹ️ Админ-пользователь уже существует: {email}")
+
 
 def seed_all():
     """Полный набор сидов (порядок важен!)"""
@@ -128,7 +134,6 @@ def seed_all():
     print("\n✅ Сидирование завершено!\n")
 
 
-# Вызываем при выполнении файла напрямую (например, через shell)
 if __name__ == "__main__":
     import django
     import os
