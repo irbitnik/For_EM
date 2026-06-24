@@ -66,7 +66,7 @@ def seed_permissions():
             }
         )
 
-    print("✅ Разрешения для пользователей и ролей созданы/найдены")
+    print("Разрешения для пользователей и ролей созданы/найдены")
 
 
 def seed_group_permissions():
@@ -77,7 +77,7 @@ def seed_group_permissions():
     required_groups = ['Админ', 'Менеджер', 'Пользователь', 'Гость']
     for name in required_groups:
         if not Group.objects.filter(name=name).exists():
-            print(f"❌ Ошибка: группа '{name}' не найдена. Выполните сначала seed_groups()")
+            print(f"Ошибка: группа '{name}' не найдена. Выполните сначала seed_groups()")
             return
 
     admin_group = Group.objects.get(name='Админ')
@@ -85,12 +85,12 @@ def seed_group_permissions():
     user_group = Group.objects.get(name='Пользователь')
     guest_group = Group.objects.get(name='Гость')
 
-    # 🟢 АДМИН: все разрешения
+    # АДМИН: все разрешения
     all_permissions = Permission.objects.all()
     admin_group.permissions.set(all_permissions)
-    print("✅ Админ получил все разрешения (полный доступ)")
+    print("Админ получил все разрешения (полный доступ)")
 
-    # 🟡 МЕНЕДЖЕР: все права, кроме критичных операций удаления
+    # МЕНЕДЖЕР: все права, кроме критичных операций удаления
     # Исключаем удаление пользователей и ролей
     manager_permissions = all_permissions.exclude(
         codename__in=[
@@ -99,10 +99,10 @@ def seed_group_permissions():
         ]
     )
     manager_group.permissions.set(manager_permissions)
-    print("✅ Менеджер получил все права, кроме удаления пользователей и ролей")
+    print("Менеджер получил все права, кроме удаления пользователей и ролей")
     print("   (может читать, создавать и обновлять всё)")
 
-    # 🔵 ПОЛЬЗОВАТЕЛЬ: права только на свой аккаунт
+    # ПОЛЬЗОВАТЕЛЬ: права только на свой аккаунт
     user_permissions = Permission.objects.filter(
         codename__in=[
             'read_customuser',           # Читать свои данные
@@ -111,17 +111,17 @@ def seed_group_permissions():
         ]
     )
     user_group.permissions.set(user_permissions)
-    print("✅ Пользователь получил права только на свой аккаунт")
+    print("Пользователь получил права только на свой аккаунт")
     print("   (чтение, обновление, удаление только своего профиля)")
 
-    # ⚪ ГОСТЬ: только чтение публичных данных
+    # ГОСТЬ: только чтение публичных данных
     guest_permissions = Permission.objects.filter(
         codename__startswith='read_'
     ).exclude(
         codename__in=['read_all_customuser', 'read_all_group']
     )
     guest_group.permissions.set(guest_permissions)
-    print("✅ Гость получил права только на чтение")
+    print("Гость получил права только на чтение")
     print("   (может читать свои данные и публичную информацию)")
 
 
@@ -193,11 +193,11 @@ def seed_users():
                 role_group = Group.objects.get(name=user_data['role'])
                 user.groups.add(role_group)
                 user.save()
-                print(f"✅ Создан пользователь: {user_data['email']}")
+                print(f"Создан пользователь: {user_data['email']}")
                 print(f"   Роль: {user_data['role']} ({user_data['description']})")
                 print(f"   Пароль: {user_data['password']}")
             except Group.DoesNotExist:
-                print(f"❌ Ошибка: группа '{user_data['role']}' не найдена")
+                print(f"Ошибка: группа '{user_data['role']}' не найдена")
         else:
             print(f"ℹ️ Пользователь уже существует: {user_data['email']}")
             # Проверяем, есть ли у него роль
@@ -207,14 +207,14 @@ def seed_users():
                 if not user.groups.filter(name=user_data['role']).exists():
                     user.groups.add(role_group)
                     user.save()
-                    print(f"   ✅ Роль '{user_data['role']}' назначена")
+                    print(f"   Роль '{user_data['role']}' назначена")
             except Group.DoesNotExist:
                 pass
 
 
 def seed_all():
     """Полный набор сидов (порядок важен!)"""
-    print("\n🔄 Старт сидирования ролей и прав...\n")
+    print("\nСтарт сидирования ролей и прав...\n")
     seed_groups()
     print()
     seed_permissions()
@@ -222,7 +222,7 @@ def seed_all():
     seed_group_permissions()
     print()
     seed_users()
-    print("\n✅ Сидирование завершено!\n")
+    print("\nСидирование завершено!\n")
 
 
 def print_role_summary():
@@ -232,7 +232,7 @@ def print_role_summary():
 
     User = apps.get_model('users.CustomUser')
 
-    print("\n📋 СВОДКА ПО РОЛЯМ И ПРАВАХ\n")
+    print("\nСВОДКА ПО РОЛЯМ И ПРАВАХ\n")
     print("=" * 80)
 
     for group_name in ['Админ', 'Менеджер', 'Пользователь', 'Гость']:
@@ -267,7 +267,7 @@ def print_users_summary():
 
     User = apps.get_model('users.CustomUser')
 
-    print("\n👥 ВСЕ ПОЛЬЗОВАТЕЛИ СИСТЕМЫ\n")
+    print("\nВСЕ ПОЛЬЗОВАТЕЛИ СИСТЕМЫ\n")
     print("=" * 80)
     print(f"{'ID':<5} {'Email':<30} {'ФИО':<30} {'Роли':<20}")
     print("-" * 80)

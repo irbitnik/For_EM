@@ -6,12 +6,11 @@ from django.contrib.auth import get_user_model
 
 
 class MockViewsSimpleTest(TestCase):
-    """Простые тесты для mock_views с проверкой 401 и 403"""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Создаем группы один раз на весь класс тестов
+
         try:
             cls.admin_group = Group.objects.get(name='Админ')
         except Group.DoesNotExist:
@@ -29,7 +28,7 @@ class MockViewsSimpleTest(TestCase):
         except Group.DoesNotExist:
             cls.guest_group = Group.objects.create(name='Гость')
 
-        # Создаем пользователей (get_or_create чтобы избежать дубликатов)
+
         cls.admin, _ = get_user_model().objects.get_or_create(
             email='admin@example.com',
             defaults={
@@ -83,17 +82,17 @@ class MockViewsSimpleTest(TestCase):
         cls.guest.save()
 
         # Назначаем разрешения группам
-        # Создаем разрешения для mock-ресурсов напрямую в базе
+
         from django.contrib.auth.models import Permission
         from django.contrib.contenttypes.models import ContentType
 
-        # Для тестов создадим упрощенные разрешения через get_or_create
+
         content_type, _ = ContentType.objects.get_or_create(
             model='Mock',
             app_label='users'
         )
 
-        # Создаем разрешения для mock-ресурсов
+
         read_product_perm, _ = Permission.objects.get_or_create(
             codename='read_product',
             defaults={'name': 'Чтение товаров', 'content_type': content_type}
@@ -115,7 +114,6 @@ class MockViewsSimpleTest(TestCase):
             defaults={'name': 'Чтение дашборда', 'content_type': content_type}
         )
 
-        # Назначаем разрешения группам
         # Гость: только чтение товаров и магазинов
         cls.guest_group.permissions.add(read_product_perm, read_shop_perm)
 
@@ -173,9 +171,7 @@ class MockViewsSimpleTest(TestCase):
         """Удалить cookie"""
         self.client.cookies.clear()
 
-    # =========================================================================
     # ТЕСТЫ 401 Unauthorized (неавторизованный доступ)
-    # =========================================================================
 
     def test_401_no_session(self):
         """401: Запрос без cookie сессии"""
@@ -205,9 +201,7 @@ class MockViewsSimpleTest(TestCase):
         expired.is_active = False
         expired.save()
 
-    # =========================================================================
     # ТЕСТЫ 200 Success (доступ авторизованных пользователей)
-    # =========================================================================
 
     def test_200_admin_products(self):
         """200: Админ получает список товаров"""
@@ -303,9 +297,7 @@ class MockViewsSimpleTest(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()['error'], 'Forbidden')
 
-    # =========================================================================
     # ТЕСТЫ 401 Unauthorized (дополнительные проверки)
-    # =========================================================================
 
     def test_401_invalid_session_for_shops(self):
         """401: Невалидная сессия для shops"""
@@ -346,9 +338,7 @@ class MockViewsSimpleTest(TestCase):
         response = self.client.get(f'{self.base_url}/access-rules/')
         self.assertEqual(response.status_code, 401)
 
-    # =========================================================================
     # ТЕСТЫ ДЛЯ БЕЗОПАСНОСТИ
-    # =========================================================================
 
     def test_all_mock_endpoints_require_auth(self):
         """401: Все mock-эндпоинты требуют аутентификации"""
@@ -375,9 +365,7 @@ class MockViewsSimpleTest(TestCase):
             self.assertIn('error', data)
             self.assertIn('detail', data)
 
-    # =========================================================================
     # ТЕСТЫ ДЕТАЛЬНЫХ ОБЪЕКТОВ
-    # =========================================================================
 
     def test_200_product_detail(self):
         """200: Получение конкретного товара"""
@@ -412,9 +400,7 @@ class MockViewsSimpleTest(TestCase):
         for item in response.json():
             self.assertEqual(item['category'].lower(), 'электроника')
 
-    # =========================================================================
     # ПРОВЕРКА СТРУКТУРЫ ОТВЕТОВ
-    # =========================================================================
 
     def test_error_response_format(self):
         """Проверка формата ошибки 401"""
@@ -441,9 +427,7 @@ class MockViewsSimpleTest(TestCase):
         self.assertIn('price', first)
         self.assertIn('category', first)
 
-    # =========================================================================
     # ТЕСТЫ 403 Forbidden (запрещенный доступ)
-    # =========================================================================
 
     def test_403_guest_no_access_to_orders(self):
         """403: Гость не может получить заказы (нет разрешения)"""

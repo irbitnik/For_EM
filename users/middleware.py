@@ -197,7 +197,7 @@ class APIMiddleware:
         # Аутентификация через сессию
         request.user = SimpleLazyObject(lambda: get_user(request))
 
-        # 🔐 Авторизация: проверяем права
+        # Авторизация: проверяем права
         is_allowed, response = PermissionEnforcer.check_access(request)
         if not is_allowed:
             return response
