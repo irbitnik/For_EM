@@ -65,10 +65,15 @@ def get_permission_type_from_method(method: str) -> str | None:
 def build_expected_permission(element: str, method: str) -> str | None:
     """Составить ожидаемый codename разрешения"""
     element_map = {
+        'customuser': 'customuser',
         'users': 'customuser',
+        'product': 'product',
         'products': 'product',
+        'shop': 'shop',
         'shops': 'shop',
+        'order': 'order',
         'orders': 'order',
+        'accessrule': 'accessrule',
         'access_rules': 'accessrule',
     }
 
@@ -86,19 +91,84 @@ def build_expected_permission(element: str, method: str) -> str | None:
 def check_permission(user, expected_codename: str) -> bool:
     """
     Проверка разрешения:
-    - если user is AnonymousUser → False (401)
+    - если user is AnonymousUser → False
     - если user.is_staff (админ Django) → True
+    - если user имеет роль 'Админ' → True
     - иначе через user.has_perm()
     """
     if not user or not user.is_authenticated:
         return False
 
-    # Админы (is_staff) имеют доступ по умолчанию (можно заменить на user.has_role('Админ'))
+    # Админы (is_staff или роль 'Админ') имеют доступ по умолчанию
     if user.is_staff:
+        return True
+
+    if hasattr(user, 'has_role') and user.has_role('Админ'):
         return True
 
     # Проверяем через стандартный механизм Django
     return user.has_perm(f'auth.{expected_codename}')
+
+
+class PermissionEnforcer:
+    """Унифицированный обработчик авторизации"""
+    
+    @staticmethod
+    def check_access(request):
+        """
+        Централизованная проверка доступа.
+        Возвращает (is_allowed, response)
+        - (True, None) — доступ разрешен, продолжить обработку
+        - (False, response) — доступ запрещен, вернуть response
+        """
+        from django.contrib.auth.models import AnonymousUser
+        
+        # Пропускаем проверку для админки и статики
+        if request.path.startswith(('/admin/', '/static/', '/media/', '/health')):
+            return True, None
+
+        # Проверка на аутентификацию
+        user = request.user
+        
+        # Если пользователь не авторизован → 401
+        if not user or user.is_anonymous or not user.is_authenticated:
+            return False, JsonResponse(
+                {'error': 'Unauthorized', 'detail': 'Authentication required'},
+                status=401
+            )
+
+        # Для GET, POST, PUT, PATCH, DELETE — проверяем разрешение
+        if request.method in ('GET', 'POST', 'PUT', 'PATCH', 'DELETE'):
+            element = get_element_from_path(request.path)
+            
+            # Специальные случаи, которые не требуют проверки разрешений
+            if not element or element in ('auth', 'users', 'auth_system'):
+                return True, None
+            
+            expected_perm = build_expected_permission(element, request.method)
+            if expected_perm:
+                if not check_permission(user, expected_perm):
+                    # Возвращаем 403 Forbidden — пользователь не имеет прав
+                    return False, JsonResponse(
+                        {'error': 'Forbidden', 'detail': f'Missing permission: {expected_perm}'},
+                        status=403
+                    )
+
+            # Специальный случай: доступ к /users/{id}/ — только к своему профилю
+            elif element == 'users':
+                path_parts = request.path.rstrip('/').split('/')
+                if len(path_parts) > 2 and path_parts[-1].isdigit():
+                    user_id = int(path_parts[-1])
+                    if user.id != user_id:
+                        # Пользователь пытается получить данные другого пользователя
+                        expected_perm = 'read_customuser'
+                        if not check_permission(user, expected_perm):
+                            return False, JsonResponse(
+                                {'error': 'Forbidden', 'detail': 'You can access only your profile'},
+                                status=403
+                            )
+
+        return True, None
 
 
 class APIMiddleware:
@@ -114,38 +184,10 @@ class APIMiddleware:
         # Аутентификация через сессию
         request.user = SimpleLazyObject(lambda: get_user(request))
 
-        # 🔐 Авторизация: проверяем права только для не-админок и не-статики
-        if not request.path.startswith(('/static/', '/media/', '/health')):
-            self._enforce_permission(request)
+        # 🔐 Авторизация: проверяем права
+        is_allowed, response = PermissionEnforcer.check_access(request)
+        if not is_allowed:
+            return response
 
         return self.get_response(request)
-
-    def _enforce_permission(self, request):
-        """Проверка прав доступа к ресурсу (если требует метод)"""
-        # ✅ Для GET, POST, PUT, PATCH, DELETE — проверяем разрешение
-        if request.method in ('GET', 'POST', 'PUT', 'PATCH', 'DELETE'):
-            element = get_element_from_path(request.path)
-            if element and element not in ('auth', 'users'):  # /users/ — специальный случай (свой аккаунт)
-                expected_perm = build_expected_permission(element, request.method)
-                if expected_perm:
-                    if not check_permission(request.user, expected_perm):
-                        # Возвращаем 403 Forbidden — пользователь не авторизован на этот ресурсе
-                        return JsonResponse(
-                            {'error': 'Forbidden', 'detail': f'Missing permission: {expected_perm}'},
-                            status=403
-                        )
-
-            # ✅ Специальный случай: доступ к /users/{id}/ — только к своему профилю
-            elif element == 'users':
-                path_parts = request.path.rstrip('/').split('/')
-                if len(path_parts) > 2 and path_parts[-1].isdigit():
-                    user_id = int(path_parts[-1])
-                    if request.user.is_authenticated and request.user.id != user_id:
-                        # Пользователь пытается получить данные другого пользователя
-                        expected_perm = 'read_customuser'
-                        if not check_permission(request.user, expected_perm):
-                            return JsonResponse(
-                                {'error': 'Forbidden', 'detail': 'You can access only your profile'},
-                                status=403
-                            )
 

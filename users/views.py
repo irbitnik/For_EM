@@ -12,9 +12,6 @@ from .models import Session, CustomUser
 class GroupListView(APIView):
     def post(self, request):
         """Создание новой группы (только для админов)"""
-        if not request.user.is_authenticated or not request.user.is_staff:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-
         serializer = GroupSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -23,9 +20,6 @@ class GroupListView(APIView):
 
     def get(self, request):
         """Получение списка всех групп (только для админов)"""
-        if not request.user.is_authenticated or not request.user.is_staff:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-
         groups = Group.objects.all()
         serializer = GroupSerializer(groups, many=True)
         return Response(serializer.data)
@@ -34,18 +28,12 @@ class GroupListView(APIView):
 class GroupDetailView(APIView):
     def get(self, request, pk):
         """Получение группы по ID (только для админов)"""
-        if not request.user.is_authenticated or not request.user.is_staff:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-
         group = get_object_or_404(Group, pk=pk)
         serializer = GroupSerializer(group)
         return Response(serializer.data)
 
     def put(self, request, pk):
         """Обновление группы по ID (только для админов)"""
-        if not request.user.is_authenticated or not request.user.is_staff:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-
         group = get_object_or_404(Group, pk=pk)
         serializer = GroupSerializer(group, data=request.data)
         if serializer.is_valid():
@@ -55,9 +43,6 @@ class GroupDetailView(APIView):
 
     def delete(self, request, pk):
         """Удаление группы по ID (только для админов)"""
-        if not request.user.is_authenticated or not request.user.is_staff:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-
         group = get_object_or_404(Group, pk=pk)
         group.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -66,9 +51,6 @@ class GroupDetailView(APIView):
 class UserGroupAssignmentView(APIView):
     def post(self, request, user_id):
         """Назначить группу пользователю (только для админов)"""
-        if not request.user.is_authenticated or not request.user.is_staff:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-
         user = get_object_or_404(CustomUser, pk=user_id)
         group_id = request.data.get('group_id')
         group = get_object_or_404(Group, pk=group_id)
@@ -77,13 +59,11 @@ class UserGroupAssignmentView(APIView):
 
     def delete(self, request, user_id, group_id):
         """Снять группу с пользователя (только для админов)"""
-        if not request.user.is_authenticated or not request.user.is_staff:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-
         user = get_object_or_404(CustomUser, pk=user_id)
         group = get_object_or_404(Group, pk=group_id)
         user.groups.remove(group)
         return Response({'message': f'Группа "{group.name}" снята с пользователя {user.email}'})
+
 
 @api_view(['POST'])
 def register(request):
@@ -100,6 +80,7 @@ def register(request):
             }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(['POST'])
 def login(request):
@@ -145,6 +126,7 @@ def login(request):
 
         return response
 
+
 @api_view(['POST'])
 def logout(request):
     """Выход из системы"""
@@ -169,14 +151,10 @@ def logout(request):
 
         return response
 
+
 @api_view(['GET', 'PUT', 'PATCH'])
 def profile(request):
     """Получение и обновление профиля"""
-    if not request.user:
-        return Response({
-            'error': 'Пользователь не авторизован'
-        }, status=status.HTTP_401_UNAUTHORIZED)
-
     user = request.user
 
     if request.method == 'GET':
@@ -192,14 +170,10 @@ def profile(request):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(['DELETE'])
 def delete_account(request):
     """Мягкое удаление аккаунта"""
-    if not request.user:
-        return Response({
-            'error': 'Пользователь не авторизован'
-        }, status=status.HTTP_401_UNAUTHORIZED)
-
     user = request.user
 
     if request.method == 'DELETE':
@@ -218,6 +192,7 @@ def delete_account(request):
 
         return response
 
+
 def set_session_cookie(response, session):
     """Установка cookie с session_id"""
     response.set_cookie(
@@ -229,6 +204,7 @@ def set_session_cookie(response, session):
         samesite='Lax'  # Защита от CSRF
     )
     return response
+
 
 def delete_session_cookie(response):
     """Удаление cookie с session_id"""
