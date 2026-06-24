@@ -75,10 +75,15 @@ def build_expected_permission(element: str, method: str) -> str | None:
         'orders': 'order',
         'accessrule': 'accessrule',
         'access_rules': 'accessrule',
+        # Mock-элементы (не требуют разрешений)
+        'mock': None,  # Mock-запросы не требуют проверки разрешений
     }
 
-    # Учитываем, что некоторые модели могут называться иначе (например, Product → product)
     codename_elem = element_map.get(element, element.lower())
+
+    # Если элемент не требует разрешений (например, mock)
+    if codename_elem is None:
+        return None
 
     perm_type = get_permission_type_from_method(method)
     if not perm_type or not codename_elem:
@@ -126,6 +131,10 @@ class PermissionEnforcer:
         # Пропускаем проверку для админки и статики
         if request.path.startswith(('/admin/', '/static/', '/media/', '/health')):
             return True, None
+        
+        # Пропускаем проверку для эндпоинтов аутентификации
+        if request.path.startswith(('/api/users/login/', '/api/users/register/', '/api/users/logout/')):
+            return True, None
 
         # Проверка на аутентификацию
         user = request.user
@@ -140,6 +149,10 @@ class PermissionEnforcer:
         # Для GET, POST, PUT, PATCH, DELETE — проверяем разрешение
         if request.method in ('GET', 'POST', 'PUT', 'PATCH', 'DELETE'):
             element = get_element_from_path(request.path)
+            
+            # Mock-элементы не требуют проверки разрешений (для демонстрации)
+            if element == 'mock':
+                return True, None
             
             # Специальные случаи, которые не требуют проверки разрешений
             if not element or element in ('auth', 'users', 'auth_system'):
@@ -190,4 +203,3 @@ class APIMiddleware:
             return response
 
         return self.get_response(request)
-

@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import RegisterSerializer, ProfileSerializer, GroupSerializer
 from django.utils import timezone
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.models import Group
 from django.shortcuts import get_object_or_404
 from .models import Session, CustomUser
@@ -116,13 +117,24 @@ def login(request):
         # Создаем сессию
         session = Session.create_session(user)
 
-        # Создаем ответ и устанавливаем cookie
-        response = Response({
-            'message': 'Вход выполнен успешно',
-            'user_id': user.id,
-            'email': user.email
-        })
-        response = set_session_cookie(response, session)
+        # Создаем ответ с cookie через HttpResponse (гарантированно устанавливает Set-Cookie)
+        response = HttpResponse()
+        response.status_code = 200
+        response['Content-Type'] = 'application/json'
+        response.content = '{"message": "Вход выполнен успешно", "user_id": %d, "email": "%s", "session_id": "%s"}' % (
+            user.id, user.email, session.session_id
+        )
+        
+        # Устанавливаем cookie
+        response.set_cookie(
+            key='session_id',
+            value=session.session_id,
+            max_age=int(session.expires_at.timestamp() - timezone.now().timestamp()),
+            httponly=True,
+            secure=False,
+            samesite='Lax',
+            path='/'
+        )
 
         return response
 
@@ -191,22 +203,3 @@ def delete_account(request):
         user.save()
 
         return response
-
-
-def set_session_cookie(response, session):
-    """Установка cookie с session_id"""
-    response.set_cookie(
-        key='session_id',
-        value=session.session_id,
-        max_age=int(session.expires_at.timestamp() - timezone.now().timestamp()),
-        httponly=True,  # Защищает от XSS атак
-        secure=False,   # True в продакшене с HTTPS
-        samesite='Lax'  # Защита от CSRF
-    )
-    return response
-
-
-def delete_session_cookie(response):
-    """Удаление cookie с session_id"""
-    response.delete_cookie('session_id')
-    return response
