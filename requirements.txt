@@ -1,0 +1,11 @@
+# Django Core
+Django>=6.0.0
+
+# Django REST Framework
+djangorestframework>=3.14.0
+
+# Бcrypt для хеширования паролей
+bcrypt>=4.0.0
+
+# Requests для HTTP-запросов
+requests>=2.28.0
